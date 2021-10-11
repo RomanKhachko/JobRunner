@@ -73,7 +73,7 @@ func (byteSlice *ByteSlice) len() int {
 	return len(byteSlice.slice)
 }
 
-func StartJob(processName string, parameters ...string) (*Job, error) { // consider returning id instead of a job
+func StartJob(processName string, parameters ...string) (*Job, error) {
 	cmd := exec.Command(processName, parameters...)
 	stdout, stderr, err := getOutputPipesFromCmd(cmd)
 	if err != nil {
@@ -139,7 +139,7 @@ func getRealtimeOutput(job *Job, ch chan []byte, output *ByteSlice) int {
 	return i
 }
 
-func captureOutput(output io.ReadCloser, writer *ByteSlice, wg *sync.WaitGroup) { // I don't even need to call wait in this case, since read will take care
+func captureOutput(output io.ReadCloser, writer *ByteSlice, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for {
 		buf := make([]byte, 1024)
