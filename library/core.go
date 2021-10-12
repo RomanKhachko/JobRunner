@@ -154,18 +154,13 @@ func captureOutput(output io.ReadCloser, writer *ByteSlice, wg *sync.WaitGroup) 
 	}
 }
 
-func getOutputPipesFromCmd(cmd *exec.Cmd) (io.ReadCloser, io.ReadCloser, error) {
-	pipeFuncs := [2]func() (io.ReadCloser, error){cmd.StdoutPipe, cmd.StderrPipe}
-	stdPipes := make([]io.ReadCloser, 2)
-	for i, pipeFunc := range pipeFuncs {
-		var err error
-		stdPipes[i], err = pipeFunc()
-		if err != nil {
-			log.Println(err)
-			return nil, nil, err
-		}
+func getOutputPipesFromCmd(cmd *exec.Cmd) (stdoutPipe, stderrPipe io.ReadCloser, err error) {
+	stdoutPipe, err = cmd.StdoutPipe()
+	if err != nil {
+		return
 	}
-	return stdPipes[0], stdPipes[1], nil
+	stderrPipe, err = cmd.StderrPipe()
+	return
 }
 
 func updateJobStatus(cmd *exec.Cmd, job *Job, wg *sync.WaitGroup) {
