@@ -51,7 +51,7 @@ func (jobStatus *JobStatus) get() string {
 }
 
 type ByteSlice struct {
-	mutex sync.Mutex
+	mutex sync.RWMutex
 	slice [][]byte
 }
 
@@ -62,8 +62,8 @@ func (byteSlice *ByteSlice) append(sliceToAdd []byte) {
 }
 
 func (byteSlice *ByteSlice) get(index int) []byte {
-	byteSlice.mutex.Lock()
-	defer byteSlice.mutex.Unlock()
+	byteSlice.mutex.RLock()
+	defer byteSlice.mutex.RUnlock()
 	return byteSlice.slice[index]
 }
 
@@ -105,7 +105,7 @@ func StopJob(job *Job) (result bool, err error) {
 	return
 }
 
-func GetJobOutput(job *Job, ch chan []byte, isStderr bool) {
+func GetJobOutput(job *Job, ch chan<- []byte, isStderr bool) {
 	var output *ByteSlice
 	if isStderr {
 		output = &job.OutputErr
@@ -121,14 +121,14 @@ func GetJobOutput(job *Job, ch chan []byte, isStderr bool) {
 
 }
 
-func getFinishedJobOutput(ch chan []byte, output *ByteSlice, startRecordIndex int) {
+func getFinishedJobOutput(ch chan<- []byte, output *ByteSlice, startRecordIndex int) {
 	for i := startRecordIndex; i < output.len(); i++ {
 		ch <- output.get(i)
 	}
 }
 
 //Writes output to channel. Returns index of the next record to read
-func getRealtimeOutput(job *Job, ch chan []byte, output *ByteSlice) int {
+func getRealtimeOutput(job *Job, ch chan<- []byte, output *ByteSlice) int {
 	i := 0
 	for job.JobStatus.get() == InProgress {
 		if output.len() > i {
@@ -139,7 +139,7 @@ func getRealtimeOutput(job *Job, ch chan []byte, output *ByteSlice) int {
 	return i
 }
 
-func captureOutput(output io.ReadCloser, writer *ByteSlice, wg *sync.WaitGroup) {
+func captureOutput(output io.Reader, writer *ByteSlice, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for {
 		buf := make([]byte, 1024)

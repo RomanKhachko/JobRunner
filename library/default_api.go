@@ -52,7 +52,7 @@ func (userJobsContainer *UserJobsContainer) getJob(userName string, jobId string
 			return nil, errors.New(errorText)
 		}
 	} else {
-		errorText := fmt.Sprintf("user %v doesn't exist", userName)
+		errorText := fmt.Sprintf("user %v hasn't created any jobs yet", userName)
 		log.Println(errorText)
 		return nil, errors.New(errorText)
 	}
