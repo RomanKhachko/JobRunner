@@ -53,12 +53,18 @@ func (jobStatus *JobStatus) get() string {
 type ByteSlice struct {
 	mutex sync.RWMutex
 	slice [][]byte
+	cond  *sync.Cond
+}
+
+func makeByteSlice() ByteSlice {
+	return ByteSlice{cond: sync.NewCond(&sync.Mutex{})}
 }
 
 func (byteSlice *ByteSlice) append(sliceToAdd []byte) {
 	byteSlice.mutex.Lock()
 	defer byteSlice.mutex.Unlock()
 	byteSlice.slice = append(byteSlice.slice, sliceToAdd)
+	byteSlice.broadcastCondition()
 }
 
 func (byteSlice *ByteSlice) get(index int) []byte {
@@ -73,6 +79,18 @@ func (byteSlice *ByteSlice) len() int {
 	return len(byteSlice.slice)
 }
 
+func (byteSlice *ByteSlice) broadcastCondition() {
+	byteSlice.cond.L.Lock()
+	defer byteSlice.cond.L.Unlock()
+	byteSlice.cond.Broadcast()
+}
+
+func (byteSlice *ByteSlice) waitForCondition() {
+	byteSlice.cond.L.Lock()
+	defer byteSlice.cond.L.Unlock()
+	byteSlice.cond.Wait()
+}
+
 func StartJob(processName string, parameters ...string) (*Job, error) {
 	cmd := exec.Command(processName, parameters...)
 	stdout, stderr, err := getOutputPipesFromCmd(cmd)
@@ -84,7 +102,7 @@ func StartJob(processName string, parameters ...string) (*Job, error) {
 		log.Println(err)
 		return nil, errors.New("job was failed to start")
 	}
-	job := &Job{JobStatus: JobStatus{jobStatus: InProgress}, ID: uuid.New(), Process: cmd.Process}
+	job := &Job{JobStatus: JobStatus{jobStatus: InProgress}, ID: uuid.New(), Process: cmd.Process, Output: makeByteSlice(), OutputErr: makeByteSlice()}
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go captureOutput(stdout, &job.Output, &wg)
@@ -135,6 +153,7 @@ func getRealtimeOutput(job *Job, ch chan<- []byte, output *ByteSlice) int {
 			ch <- output.get(i)
 			i++
 		}
+		output.waitForCondition()
 	}
 	return i
 }
@@ -171,6 +190,8 @@ func updateJobStatus(cmd *exec.Cmd, job *Job, wg *sync.WaitGroup) {
 	}
 	job.ExitCode = cmd.ProcessState.ExitCode()
 	job.JobStatus.set(getProcessStatusBasedOnCode(job.ExitCode))
+	job.OutputErr.broadcastCondition()
+	job.Output.broadcastCondition()
 }
 
 func getProcessStatusBasedOnCode(exitCode int) string {
