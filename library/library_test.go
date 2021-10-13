@@ -3,6 +3,7 @@ package library
 import (
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -12,7 +13,7 @@ import (
 func TestJobStartStatusAndOutputOfExitedJob(t *testing.T) {
 	userName := "Roman"
 	jobId, _ := StartUserJob(userName, "ls")
-	time.Sleep(2 * time.Millisecond)
+	pollTheJobStatusWithInterval(UserJob{userName, jobId}, Exited, PollTimeout{2, 10}, t)
 	jobStatus, exitCode, _ := GetUserJobStatus(userName, jobId)
 	expectedJobStatus := Exited
 	if jobStatus != expectedJobStatus {
@@ -43,11 +44,11 @@ func TestRealtimeOutputAndJobTermination(t *testing.T) {
 	go GetUserJobOutput(userName, jobId, ch, false)
 
 	// here we're giving two second for the job before terminating it
-	var terminationResult bool
+	var terminationResult atomic.Value
 	go func() {
 		time.Sleep(2 * time.Second)
-		terminationResult, _ = StopUserJob(userName, jobId)
-
+		res, _ := StopUserJob(userName, jobId)
+		terminationResult.Store(res)
 	}()
 	var output string
 	for i := range ch {
@@ -61,7 +62,7 @@ func TestRealtimeOutputAndJobTermination(t *testing.T) {
 	if jobStatus != expectedJobStatus {
 		t.Fatalf(`Expected job status is %v; actual is %v`, expectedJobStatus, jobStatus)
 	}
-	if !terminationResult {
+	if !terminationResult.Load().(bool) {
 		t.Fatalf(`Returned termination result is supposed to be %v; actual is %v`, true, terminationResult)
 	}
 	expectedExitCode := "-1"
@@ -112,5 +113,40 @@ func TestGetJobStderrOutput(t *testing.T) {
 func verifyJobStartPrecondition(err error, t *testing.T) {
 	if err != nil {
 		t.Fatalf("Test precondition is failed. Job was supposed to start successfully")
+	}
+}
+
+type PollTimeout struct {
+	intervalMs, timeoutMs int
+}
+
+type UserJob struct {
+	user, jobID string
+}
+
+func pollTheJobStatusWithInterval(userJobPair UserJob, expectedStatus string, pollTimeout PollTimeout, t *testing.T) {
+	ch := make(chan bool)
+	go func() {
+		for {
+			status, _, _ := GetUserJobStatus(userJobPair.user, userJobPair.jobID)
+			isStatusChanged := status == expectedStatus
+			if isStatusChanged {
+				ch <- isStatusChanged
+			} else {
+				time.Sleep(time.Duration(pollTimeout.intervalMs) * time.Millisecond)
+			}
+		}
+	}()
+	waitForBoolCondition(ch, pollTimeout, t, "JobStatus is not as expected")
+}
+
+func waitForBoolCondition(ch chan bool, pollTimeout PollTimeout, t *testing.T, errorText string) {
+	for {
+		select {
+		case <-ch:
+			return
+		case <-time.After(time.Duration(pollTimeout.timeoutMs) * time.Millisecond):
+			t.Fatalf(errorText)
+		}
 	}
 }
