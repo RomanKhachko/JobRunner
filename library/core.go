@@ -91,9 +91,15 @@ func (byteSlice *ByteSlice) broadcastCondition() {
 }
 
 func (byteSlice *ByteSlice) waitForCondition() {
-	byteSlice.cond.L.Lock()
-	defer byteSlice.cond.L.Unlock()
 	byteSlice.cond.Wait()
+}
+
+func (byteSlice *ByteSlice) lockCondition() {
+	byteSlice.cond.L.Lock()
+}
+
+func (byteSlice *ByteSlice) unlockCondition() {
+	byteSlice.cond.L.Unlock()
 }
 
 // StartJobs starts a requested process, starts job handler function running cuncurrently.
@@ -162,6 +168,7 @@ func getFinishedJobOutput(ch chan<- []byte, output *ByteSlice, startRecordIndex 
 //Writes output to channel. Returns index of the next record to read
 func getRealtimeOutput(job *Job, ch chan<- []byte, output *ByteSlice) int {
 	i := 0
+	output.lockCondition()
 	for job.JobStatus.Get() == InProgress {
 		if output.len() > i {
 			ch <- output.get(i)
@@ -169,6 +176,7 @@ func getRealtimeOutput(job *Job, ch chan<- []byte, output *ByteSlice) int {
 		}
 		output.waitForCondition()
 	}
+	output.unlockCondition()
 	return i
 }
 
