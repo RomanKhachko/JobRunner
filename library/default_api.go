@@ -100,14 +100,25 @@ func GetUserJobStatus(user string, jobID string) (jobStatus string, exitCode str
 	}
 }
 
-// GetJobOutput streams output of the job from the beginning until the job is completed.
+// GetUserJobStdoutOutput streams stdout output of the job from the beginning until the job is completed.
 // Once output is returned, channel will be closed.
 // If user doesn't have any jobs or requested job doesn't belong to a user, false and error will be returned.
-func GetUserJobOutput(user string, jobID string, ch chan<- []byte, isStdErr bool) error {
+func GetUserJobStdoutOutput(user string, jobID string, ch chan<- []byte) error {
+	return getUserJobOutput(user, jobID, ch, GetJobStdoutOutput)
+}
+
+// GetUserJobStderrOutput streams stderr output of the job from the beginning until the job is completed.
+// Once output is returned, channel will be closed.
+// If user doesn't have any jobs or requested job doesn't belong to a user, false and error will be returned.
+func GetUserJobStderrOutput(user, jobID string, ch chan<- []byte) error {
+	return getUserJobOutput(user, jobID, ch, GetJobStderrOutput)
+}
+
+func getUserJobOutput(user, jobID string, ch chan<- []byte, jobOutputFunc func(*Job, chan<- []byte)) error {
 	if job, err := userJobContainer.getJob(user, jobID); err != nil {
 		return err
 	} else {
-		GetJobOutput(job, ch, isStdErr)
+		jobOutputFunc(job, ch)
 		return nil
 	}
 }

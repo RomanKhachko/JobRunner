@@ -130,22 +130,27 @@ func StopJob(job *Job) (result bool, err error) {
 	return
 }
 
-// GetJobOutput streams output of the job from the beginning until the job is completed.
+// GetJobStdoutOutput streams stdout output of the job from the beginning until the job is completed.
 // Once output is returned, channel will be closed.
-func GetJobOutput(job *Job, ch chan<- []byte, isStderr bool) {
-	var output *ByteSlice
-	if isStderr {
-		output = &job.outputErr
-	} else {
-		output = &job.output
-	}
+func GetJobStdoutOutput(job *Job, ch chan<- []byte) {
+	getJobOutput(job, ch, &job.output)
+}
+
+// GetJobStderrOutput streams stderr output of the job from the beginning until the job is completed.
+// Once output is returned, channel will be closed.
+func GetJobStderrOutput(job *Job, ch chan<- []byte) {
+	getJobOutput(job, ch, &job.outputErr)
+}
+
+// getJobOutput streams output of the job from the beginning until the job is completed.
+// Once output is returned, channel will be closed.
+func getJobOutput(job *Job, ch chan<- []byte, output *ByteSlice) {
 	var startRecordIndex int
 	if job.JobStatus.Get() == InProgress {
 		startRecordIndex = getRealtimeOutput(job, ch, output)
 	}
 	getFinishedJobOutput(ch, output, startRecordIndex)
 	close(ch)
-
 }
 
 func getFinishedJobOutput(ch chan<- []byte, output *ByteSlice, startRecordIndex int) {

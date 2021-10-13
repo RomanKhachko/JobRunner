@@ -25,7 +25,7 @@ func TestJobStartStatusAndOutputOfExitedJob(t *testing.T) {
 	}
 	// test getting output. Since job is finished, there will be a streaming of finished job output
 	ch := make(chan []byte)
-	go GetUserJobOutput(userName, jobId, ch, false)
+	go GetUserJobStdoutOutput(userName, jobId, ch)
 	var output string
 	for i := range ch {
 		output += string(i)
@@ -41,7 +41,7 @@ func TestRealtimeOutputAndJobTermination(t *testing.T) {
 	jobId, err := StartUserJob(userName, "../testdata/long_running_job.sh")
 	verifyJobStartPrecondition(err, t)
 	ch := make(chan []byte)
-	go GetUserJobOutput(userName, jobId, ch, false)
+	go GetUserJobStdoutOutput(userName, jobId, ch)
 
 	// here we're giving two second for the job before terminating it
 	var terminationResult atomic.Value
@@ -99,7 +99,7 @@ func TestGetJobStderrOutput(t *testing.T) {
 	jobID, err := StartUserJob(userName, "../testdata/failed_script.sh")
 	verifyJobStartPrecondition(err, t)
 	ch := make(chan []byte)
-	go GetUserJobOutput(userName, jobID, ch, true)
+	go GetUserJobStderrOutput(userName, jobID, ch)
 	var output string
 	for i := range ch {
 		output += string(i)
