@@ -95,6 +95,7 @@ func StartJob(processName string, parameters ...string) (*Job, error) {
 	cmd := exec.Command(processName, parameters...)
 	stdout, stderr, err := getOutputPipesFromCmd(cmd)
 	if err != nil {
+		log.Println(err)
 		return nil, errors.New("can't get output from process")
 	}
 	err = cmd.Start()
@@ -103,11 +104,7 @@ func StartJob(processName string, parameters ...string) (*Job, error) {
 		return nil, errors.New("job was failed to start")
 	}
 	job := &Job{JobStatus: JobStatus{jobStatus: InProgress}, ID: uuid.New(), Process: cmd.Process, Output: makeByteSlice(), OutputErr: makeByteSlice()}
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go captureOutput(stdout, &job.Output, &wg)
-	go captureOutput(stderr, &job.OutputErr, &wg)
-	go updateJobStatus(cmd, job, &wg)
+	go handleJob(cmd, job, stdout, stderr)
 	return job, nil
 }
 
@@ -182,8 +179,7 @@ func getOutputPipesFromCmd(cmd *exec.Cmd) (stdoutPipe, stderrPipe io.ReadCloser,
 	return
 }
 
-func updateJobStatus(cmd *exec.Cmd, job *Job, wg *sync.WaitGroup) {
-	wg.Wait()
+func updateJobStatus(cmd *exec.Cmd, job *Job) {
 	err := cmd.Wait()
 	if err != nil {
 		log.Println(fmt.Sprintf("Job ID '%v': %v", job.ID, err))
@@ -192,6 +188,15 @@ func updateJobStatus(cmd *exec.Cmd, job *Job, wg *sync.WaitGroup) {
 	job.JobStatus.set(getProcessStatusBasedOnCode(job.ExitCode))
 	job.OutputErr.broadcastCondition()
 	job.Output.broadcastCondition()
+}
+
+func handleJob(cmd *exec.Cmd, job *Job, stdout, stderr io.ReadCloser) {
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go captureOutput(stdout, &job.Output, &wg)
+	go captureOutput(stderr, &job.OutputErr, &wg)
+	wg.Wait()
+	updateJobStatus(cmd, job)
 }
 
 func getProcessStatusBasedOnCode(exitCode int) string {
