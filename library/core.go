@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"sync/atomic"
 )
 
 // Job status constants
@@ -56,13 +57,16 @@ func (jobStatus *JobStatus) Get() string {
 }
 
 type ByteSlice struct {
-	mutex sync.RWMutex
-	slice [][]byte
-	cond  *sync.Cond
+	mutex       sync.RWMutex
+	slice       [][]byte
+	cond        *sync.Cond
+	doneWriting atomic.Value
 }
 
 func makeByteSlice() ByteSlice {
-	return ByteSlice{cond: sync.NewCond(&sync.Mutex{})}
+	var doneWriting atomic.Value
+	doneWriting.Store(false)
+	return ByteSlice{cond: sync.NewCond(&sync.Mutex{}), doneWriting: doneWriting}
 }
 
 func (byteSlice *ByteSlice) append(sliceToAdd []byte) {
@@ -168,20 +172,24 @@ func getFinishedJobOutput(ch chan<- []byte, output *ByteSlice, startRecordIndex 
 //Writes output to channel. Returns index of the next record to read
 func getRealtimeOutput(job *Job, ch chan<- []byte, output *ByteSlice) int {
 	i := 0
-	output.lockCondition()
 	for job.JobStatus.Get() == InProgress {
 		if output.len() > i {
 			ch <- output.get(i)
 			i++
 		}
-		output.waitForCondition()
+		output.lockCondition()
+		for !output.doneWriting.Load().(bool) && output.len() <= i {
+			output.waitForCondition()
+		}
+		output.unlockCondition()
 	}
-	output.unlockCondition()
 	return i
 }
 
 func captureOutput(output io.Reader, writer *ByteSlice, wg *sync.WaitGroup) {
 	defer wg.Done()
+	defer writer.doneWriting.Store(true)
+	defer writer.broadcastCondition()
 	for {
 		buf := make([]byte, 1024)
 		n, err := output.Read(buf)
@@ -211,8 +219,6 @@ func updateJobStatus(cmd *exec.Cmd, job *Job) {
 	}
 	job.ExitCode = cmd.ProcessState.ExitCode()
 	job.JobStatus.Set(getProcessStatusBasedOnCode(job.ExitCode))
-	job.outputErr.broadcastCondition()
-	job.output.broadcastCondition()
 }
 
 func handleJob(cmd *exec.Cmd, job *Job, stdout, stderr io.ReadCloser) {
@@ -233,5 +239,4 @@ func getProcessStatusBasedOnCode(exitCode int) string {
 	default:
 		return ExitedWithErr
 	}
-
 }
