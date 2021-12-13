@@ -107,7 +107,7 @@ func (byteSlice *ByteSlice) unlockCondition() {
 }
 
 // StartJobs starts a requested process, starts job handler function running cuncurrently.
-// Once job is started, it will return. Returned Job contains all the relevent information about job.
+// Once job is started, it will return. Returned Job contains all the relevant information about job.
 // If process couldn't be started or there were issues with getting output, error is returned.
 func StartJob(processName string, parameters ...string) (*Job, error) {
 	cmd := exec.Command(processName, parameters...)
@@ -169,7 +169,7 @@ func getFinishedJobOutput(ch chan<- []byte, output *ByteSlice, startRecordIndex 
 	}
 }
 
-//Writes output to channel. Returns index of the next record to read
+// Writes output to channel. Returns index of the next record to read
 func getRealtimeOutput(job *Job, ch chan<- []byte, output *ByteSlice) int {
 	i := 0
 	for job.JobStatus.Get() == InProgress {
