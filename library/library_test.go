@@ -73,7 +73,7 @@ func TestRealtimeOutputAndJobTermination(t *testing.T) {
 
 func TestUserIsNotFound(t *testing.T) {
 	userName := "Roman, but with no jobs created"
-	_, exitCode, err := GetUserJobStatus("Roman, but with no jobs created", "")
+	_, exitCode, err := GetUserJobStatus(userName, "")
 	expectedErrorText := fmt.Sprintf("user %v hasn't created any jobs yet", userName)
 	if err.Error() != expectedErrorText {
 		t.Fatalf("Actual error is '%v'; expected error text is '%v'", err, expectedErrorText)

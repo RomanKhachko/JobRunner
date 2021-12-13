@@ -128,7 +128,7 @@ func StartJob(processName string, parameters ...string) (*Job, error) {
 
 // StopJob terminates the process associated with a job. Returns true in case of success, false and error otherwise.
 // Please note, this function will terminate initiated process, but not its children.
-// It can either be addressed the group termination in one of the next PRs or can be put out of scope.
+// It can either be addressed by the group termination.
 func StopJob(job *Job) (result bool, err error) {
 	err = job.process.Kill()
 	if err != nil {
